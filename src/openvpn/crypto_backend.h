@@ -5,8 +5,8 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
- *  Copyright (C) 2010-2018 Fox Crypto B.V. <openvpn@fox-it.com>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2010-2021 Fox Crypto B.V. <openvpn@foxcrypto.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -87,18 +87,6 @@ void crypto_init_lib_engine(const char *engine_name);
 void crypto_init_dmalloc(void);
 
 #endif /* DMALLOC */
-
-/**
- * Translate a data channel cipher name from the OpenVPN config file
- * 'language' to the crypto library specific name.
- */
-const char *translate_cipher_name_from_openvpn(const char *cipher_name);
-
-/**
- * Translate a data channel cipher name from the crypto library specific name
- * to the OpenVPN config file 'language'.
- */
-const char *translate_cipher_name_from_openvpn(const char *cipher_name);
 
 void show_available_ciphers(void);
 
@@ -227,7 +215,8 @@ void cipher_des_encrypt_ecb(const unsigned char key[DES_KEY_LENGTH],
  * initialise encryption/decryption.
  *
  * @param ciphername    Name of the cipher to retrieve parameters for (e.g.
- *                      \c AES-128-CBC).
+ *                      \c AES-128-CBC). Will be translated to the library name
+ *                      from the openvpn config name if needed.
  *
  * @return              A statically allocated structure containing parameters
  *                      for the given cipher, or NULL if no matching parameters
@@ -237,6 +226,10 @@ const cipher_kt_t *cipher_kt_get(const char *ciphername);
 
 /**
  * Retrieve a string describing the cipher (e.g. \c AES-128-CBC).
+ * The returned name is normalised to the OpenVPN config name in case the
+ * name differs from the name used by the crypto library.
+ *
+ * Returns [null-cipher] in case the cipher_kt is NULL.
  *
  * @param cipher_kt     Static cipher parameters
  *
@@ -341,7 +334,7 @@ bool cipher_kt_mode_aead(const cipher_kt_t *cipher);
 cipher_ctx_t *cipher_ctx_new(void);
 
 /**
- * Free a cipher context
+ * Cleanup and free a cipher context
  *
  * @param ctx           Cipher context.
  */
@@ -359,13 +352,6 @@ void cipher_ctx_free(cipher_ctx_t *ctx);
  */
 void cipher_ctx_init(cipher_ctx_t *ctx, const uint8_t *key, int key_len,
                      const cipher_kt_t *kt, int enc);
-
-/**
- * Cleanup the specified context.
- *
- * @param ctx   Cipher context to cleanup.
- */
-void cipher_ctx_cleanup(cipher_ctx_t *ctx);
 
 /**
  * Returns the size of the IV used by the cipher, in bytes, or 0 if no IV is
@@ -533,7 +519,7 @@ const char *md_kt_name(const md_kt_t *kt);
  *
  * @return              Message digest size, in bytes, or 0 if ctx was NULL.
  */
-int md_kt_size(const md_kt_t *kt);
+unsigned char md_kt_size(const md_kt_t *kt);
 
 
 /*
@@ -702,5 +688,22 @@ const char *translate_cipher_name_from_openvpn(const char *cipher_name);
  *                      matching cipher name was found.
  */
 const char *translate_cipher_name_to_openvpn(const char *cipher_name);
+
+
+/**
+ * Calculates the TLS 1.0-1.1 PRF function. For the exact specification of the
+ * function definition see the TLS RFCs like RFC 4346.
+ *
+ * @param seed          seed to use
+ * @param seed_len      length of the seed
+ * @param secret        secret to use
+ * @param secret_len    length of the secret
+ * @param output        output destination
+ * @param output_len    length of output/number of bytes to generate
+ *
+ * @return              true if successful, false on any error
+ */
+bool ssl_tls1_PRF(const uint8_t *seed, int seed_len, const uint8_t *secret,
+                  int secret_len, uint8_t *output, int output_len);
 
 #endif /* CRYPTO_BACKEND_H_ */

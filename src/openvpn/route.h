@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -184,7 +184,11 @@ struct route_ipv6_gateway_info {
 #ifdef _WIN32
     DWORD adapter_index; /* interface or ~0 if undefined */
 #else
-    char iface[16]; /* interface name (null terminated), may be empty */
+    /* non linux platform don't have this constant defined */
+#ifndef IFNAMSIZ
+#define IFNAMSIZ 16
+#endif
+    char iface[IFNAMSIZ]; /* interface name (null terminated), may be empty */
 #endif
 
     /* gateway interface hardware address */
@@ -226,7 +230,6 @@ struct route_ipv6_list {
     struct gc_arena gc;
 };
 
-#if P2MP
 /* internal OpenVPN route */
 struct iroute {
     in_addr_t network;
@@ -239,7 +242,6 @@ struct iroute_ipv6 {
     unsigned int netbits;
     struct iroute_ipv6 *next;
 };
-#endif
 
 struct route_option_list *new_route_option_list(struct gc_arena *a);
 
@@ -316,8 +318,6 @@ void delete_routes(struct route_list *rl,
 void setenv_routes(struct env_set *es, const struct route_list *rl);
 
 void setenv_routes_ipv6(struct env_set *es, const struct route_ipv6_list *rl6);
-
-
 
 bool is_special_addr(const char *addr_str);
 

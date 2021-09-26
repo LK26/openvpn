@@ -5,8 +5,8 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
- *  Copyright (C) 2010-2018 Fox Crypto B.V. <openvpn@fox-it.com>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2010-2021 Fox Crypto B.V. <openvpn@foxcrypto.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -102,17 +102,11 @@ cleanup:
      * openssl objects have reference
      * count, so release them
      */
-    if (x509 != NULL)
-    {
-        X509_free(x509);
-        x509 = NULL;
-    }
+    X509_free(x509);
+    x509 = NULL;
 
-    if (evp != NULL)
-    {
-        EVP_PKEY_free(evp);
-        evp = NULL;
-    }
+    EVP_PKEY_free(evp);
+    evp = NULL;
 
     if (openssl_session != NULL)
     {
@@ -138,11 +132,8 @@ pkcs11_certificate_dn(pkcs11h_certificate_t certificate, struct gc_arena *gc)
     dn = x509_get_subject(x509, gc);
 
 cleanup:
-    if (x509 != NULL)
-    {
-        X509_free(x509);
-        x509 = NULL;
-    }
+    X509_free(x509);
+    x509 = NULL;
 
     return dn;
 }
@@ -183,12 +174,9 @@ pkcs11_certificate_serial(pkcs11h_certificate_t certificate, char *serial,
     ret = 0;
 
 cleanup:
+    X509_free(x509);
+    x509 = NULL;
 
-    if (x509 != NULL)
-    {
-        X509_free(x509);
-        x509 = NULL;
-    }
     return ret;
 }
 #endif /* defined(ENABLE_PKCS11) && defined(ENABLE_OPENSSL) */

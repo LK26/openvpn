@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -46,12 +46,8 @@ const uint8_t ping_string[] = {
     0x07, 0xed, 0x2d, 0x0a, 0x98, 0x1f, 0xc7, 0x48
 };
 
-/*
- * Should we exit or restart due to ping (or other authenticated packet)
- * not received in n seconds?
- */
 void
-check_ping_restart_dowork(struct context *c)
+trigger_ping_timeout_signal(struct context *c)
 {
     struct gc_arena gc = gc_new();
     switch (c->options.ping_rec_timeout_action)

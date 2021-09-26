@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -123,7 +123,7 @@ lzo_compress_uninit(struct compress_context *compctx)
 static inline bool
 lzo_compression_enabled(struct compress_context *compctx)
 {
-    if (compctx->flags & COMP_F_ASYM)
+    if (!(compctx->flags & COMP_F_ALLOW_COMPRESS))
     {
         return false;
     }
@@ -265,10 +265,4 @@ const struct compress_alg lzo_alg = {
     lzo_compress,
     lzo_decompress
 };
-
-#else  /* if defined(ENABLE_LZO) */
-static void
-dummy(void)
-{
-}
 #endif /* ENABLE_LZO */

@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -188,11 +188,6 @@ struct link_socket
     struct cached_dns_entry *dns_cache;
     bool bind_local;
 
-#define INETD_NONE   0
-#define INETD_WAIT   1
-#define INETD_NOWAIT 2
-    int inetd;
-
 #define LS_MODE_DEFAULT           0
 #define LS_MODE_TCP_LISTEN        1
 #define LS_MODE_TCP_ACCEPT_FROM   2
@@ -212,6 +207,7 @@ struct link_socket
 #define SF_GETADDRINFO_DGRAM (1<<4)
     unsigned int sockflags;
     int mark;
+    const char *bind_dev;
 
     /* for stream sockets */
     struct stream_buf stream_buf;
@@ -296,41 +292,9 @@ int openvpn_connect(socket_descriptor_t sd,
 /*
  * Initialize link_socket object.
  */
+void link_socket_init_phase1(struct context *c, int mode);
 
-void
-link_socket_init_phase1(struct link_socket *sock,
-                        const char *local_host,
-                        const char *local_port,
-                        const char *remote_host,
-                        const char *remote_port,
-                        struct cached_dns_entry *dns_cache,
-                        int proto,
-                        sa_family_t af,
-                        bool bind_ipv6_only,
-                        int mode,
-                        const struct link_socket *accept_from,
-                        struct http_proxy_info *http_proxy,
-                        struct socks_proxy_info *socks_proxy,
-#ifdef ENABLE_DEBUG
-                        int gremlin,
-#endif
-                        bool bind_local,
-                        bool remote_float,
-                        int inetd,
-                        struct link_socket_addr *lsa,
-                        const char *ipchange_command,
-                        const struct plugin_list *plugins,
-                        int resolve_retry_seconds,
-                        int mtu_discover_type,
-                        int rcvbuf,
-                        int sndbuf,
-                        int mark,
-                        struct event_timeout *server_poll_timeout,
-                        unsigned int sockflags);
-
-void link_socket_init_phase2(struct link_socket *sock,
-                             const struct frame *frame,
-                             struct signal_info *sig_info);
+void link_socket_init_phase2(struct context *c);
 
 void do_preresolve(struct context *c);
 
@@ -431,8 +395,7 @@ in_addr_t link_socket_current_remote(const struct link_socket_info *info);
 const struct in6_addr *link_socket_current_remote_ipv6
     (const struct link_socket_info *info);
 
-void link_socket_connection_initiated(const struct buffer *buf,
-                                      struct link_socket_info *info,
+void link_socket_connection_initiated(struct link_socket_info *info,
                                       const struct link_socket_actual *addr,
                                       const char *common_name,
                                       struct env_set *es);
@@ -476,18 +439,6 @@ socket_descriptor_t create_socket_tcp(struct addrinfo *);
 socket_descriptor_t socket_do_accept(socket_descriptor_t sd,
                                      struct link_socket_actual *act,
                                      const bool nowait);
-
-/*
- * proto related
- */
-bool proto_is_net(int proto);
-
-bool proto_is_dgram(int proto);
-
-bool proto_is_udp(int proto);
-
-bool proto_is_tcp(int proto);
-
 
 #if UNIX_SOCK_SUPPORT
 
@@ -574,6 +525,44 @@ enum proto_num {
     PROTO_TCP_CLIENT,
     PROTO_N
 };
+
+static inline bool
+proto_is_net(int proto)
+{
+    ASSERT(proto >= 0 && proto < PROTO_N);
+    return proto != PROTO_NONE;
+}
+
+/**
+ * @brief Returns if the protocol being used is UDP
+ */
+static inline bool
+proto_is_udp(int proto)
+{
+    ASSERT(proto >= 0 && proto < PROTO_N);
+    return proto == PROTO_UDP;
+}
+
+/**
+ * @brief Return if the protocol is datagram (UDP)
+ *
+ */
+static inline bool
+proto_is_dgram(int proto)
+{
+    return proto_is_udp(proto);
+}
+
+/**
+  * @brief returns if the proto is a TCP variant (tcp-server, tcp-client or tcp)
+ */
+static inline bool
+proto_is_tcp(int proto)
+{
+    ASSERT(proto >= 0 && proto < PROTO_N);
+    return proto == PROTO_TCP_CLIENT || proto == PROTO_TCP_SERVER;
+}
+
 
 int ascii2proto(const char *proto_name);
 
@@ -980,29 +969,25 @@ link_socket_get_outgoing_addr(struct buffer *buf,
 }
 
 static inline void
-link_socket_set_outgoing_addr(const struct buffer *buf,
-                              struct link_socket_info *info,
+link_socket_set_outgoing_addr(struct link_socket_info *info,
                               const struct link_socket_actual *act,
                               const char *common_name,
                               struct env_set *es)
 {
-    if (!buf || buf->len > 0)
+    struct link_socket_addr *lsa = info->lsa;
+    if (
+        /* new or changed address? */
+        (!info->connection_established
+         || !addr_match_proto(&act->dest, &lsa->actual.dest, info->proto)
+        )
+        &&
+        /* address undef or address == remote or --float */
+        (info->remote_float
+         || (!lsa->remote_list || addrlist_match_proto(&act->dest, lsa->remote_list, info->proto))
+        )
+        )
     {
-        struct link_socket_addr *lsa = info->lsa;
-        if (
-            /* new or changed address? */
-            (!info->connection_established
-             || !addr_match_proto(&act->dest, &lsa->actual.dest, info->proto)
-            )
-            &&
-            /* address undef or address == remote or --float */
-            (info->remote_float
-             || (!lsa->remote_list || addrlist_match_proto(&act->dest, lsa->remote_list, info->proto))
-            )
-            )
-        {
-            link_socket_connection_initiated(buf, info, act, common_name, es);
-        }
+        link_socket_connection_initiated(info, act, common_name, es);
     }
 }
 

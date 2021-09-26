@@ -5,8 +5,8 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
- *  Copyright (C) 2013-2018 Gert Doering <gert@greenie.muc.de>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2013-2021 Gert Doering <gert@greenie.muc.de>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -31,12 +31,7 @@
 #include "syshead.h"
 
 #if defined(ENABLE_LZ4)
-
-#if defined(NEED_COMPAT_LZ4)
-#include "compat-lz4.h"
-#else
 #include <lz4.h>
-#endif
 
 #include "comp.h"
 #include "error.h"
@@ -70,8 +65,9 @@ do_lz4_compress(struct buffer *buf,
 {
     /*
      * In order to attempt compression, length must be at least COMPRESS_THRESHOLD.
+     * and asymmetric compression must be disabled
      */
-    if (buf->len >= COMPRESS_THRESHOLD)
+    if (buf->len >= COMPRESS_THRESHOLD && (compctx->flags & COMP_F_ALLOW_COMPRESS))
     {
         const size_t ps = PAYLOAD_SIZE(frame);
         int zlen_max = ps + COMP_EXTRA_BUFFER(ps);
@@ -313,10 +309,4 @@ const struct compress_alg lz4v2_alg = {
     lz4v2_compress,
     lz4v2_decompress
 };
-
-#else  /* if defined(ENABLE_LZ4) */
-static void
-dummy(void)
-{
-}
 #endif /* ENABLE_LZ4 */

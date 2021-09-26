@@ -26,7 +26,7 @@ trap "rm -f key.$$ tc-server-key.$$ tc-client-key.$$ log.$$ ; exit 1" 0 3
 
 # Get list of supported ciphers from openvpn --show-ciphers output
 CIPHERS=$(${top_builddir}/src/openvpn/openvpn --show-ciphers | \
-            sed -e '/The following/,/^$/d' -e s'/ .*//' -e '/^\s*$/d')
+            sed -e '/The following/,/^$/d' -e s'/ .*//' -e '/^[[:space:]]*$/d')
 
 # SK, 2014-06-04: currently the DES-EDE3-CFB1 implementation of OpenSSL is
 # broken (see http://rt.openssl.org/Ticket/Display.html?id=2867), so exclude
@@ -44,7 +44,7 @@ set +e
 e=0
 for cipher in ${CIPHERS}
 do
-    echo -n "Testing cipher ${cipher}... "
+    printf "Testing cipher ${cipher}... "
     ( "${top_builddir}/src/openvpn/openvpn" --test-crypto --secret key.$$ --cipher ${cipher} ) >log.$$ 2>&1
     if [ $? != 0 ] ; then
         echo "FAILED"
@@ -55,7 +55,7 @@ do
     fi
 done
 
-echo -n "Testing tls-crypt-v2 server key generation..."
+printf "Testing tls-crypt-v2 server key generation... "
 "${top_builddir}/src/openvpn/openvpn" \
     --genkey tls-crypt-v2-server tc-server-key.$$ >log.$$ 2>&1
 if [ $? != 0 ] ; then
@@ -66,7 +66,7 @@ else
     echo "OK"
 fi
 
-echo -n "Testing tls-crypt-v2 key generation (no metadata)..."
+printf "Testing tls-crypt-v2 key generation (no metadata)... "
 "${top_builddir}/src/openvpn/openvpn" --tls-crypt-v2 tc-server-key.$$ \
     --genkey tls-crypt-v2-client tc-client-key.$$ >log.$$ 2>&1
 if [ $? != 0 ] ; then
@@ -84,7 +84,7 @@ while [ $i -lt 732 ]; do
     METADATA="${METADATA}A"
     i=$(expr $i + 1)
 done
-echo -n "Testing tls-crypt-v2 key generation (max length metadata)..."
+printf "Testing tls-crypt-v2 key generation (max length metadata)... "
 "${top_builddir}/src/openvpn/openvpn" --tls-crypt-v2 tc-server-key.$$ \
     --genkey tls-crypt-v2-client tc-client-key.$$ "${METADATA}" \
     >log.$$ 2>&1

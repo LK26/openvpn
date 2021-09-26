@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -184,10 +184,7 @@ buf_assign(struct buffer *dest, const struct buffer *src)
 void
 free_buf(struct buffer *buf)
 {
-    if (buf->data)
-    {
-        free(buf->data);
-    }
+    free(buf->data);
     CLEAR(*buf);
 }
 
@@ -474,7 +471,7 @@ x_gc_freespecial(struct gc_arena *a)
 }
 
 void
-gc_addspecial(void *addr, void (free_function)(void *), struct gc_arena *a)
+gc_addspecial(void *addr, void (*free_function)(void *), struct gc_arena *a)
 {
     ASSERT(a);
     struct gc_entry_special *e;
@@ -664,7 +661,7 @@ rm_trailing_chars(char *str, const char *what_to_delete)
     bool modified;
     do
     {
-        const int len = strlen(str);
+        const size_t len = strlen(str);
         modified = false;
         if (len > 0)
         {
@@ -690,7 +687,7 @@ string_alloc(const char *str, struct gc_arena *gc)
 {
     if (str)
     {
-        const int n = strlen(str) + 1;
+        const size_t n = strlen(str) + 1;
         char *ret;
 
         if (gc)
@@ -709,7 +706,6 @@ string_alloc(const char *str, struct gc_arena *gc)
              */
 #ifdef DMALLOC
             ret = openvpn_dmalloc(file, line, n);
-            memset(ret, 0, n);
 #else
             ret = calloc(1, n);
 #endif
@@ -817,7 +813,7 @@ string_alloc_buf(const char *str, struct gc_arena *gc)
 bool
 buf_string_match_head_str(const struct buffer *src, const char *match)
 {
-    const int size = strlen(match);
+    const size_t size = strlen(match);
     if (size < 0 || size > src->len)
     {
         return false;
@@ -830,7 +826,7 @@ buf_string_compare_advance(struct buffer *src, const char *match)
 {
     if (buf_string_match_head_str(src, match))
     {
-        buf_advance(src, strlen(match));
+        buf_advance(src, (int)strlen(match));
         return true;
     }
     else
@@ -1247,7 +1243,7 @@ buffer_list_push(struct buffer_list *ol, const char *str)
         struct buffer_entry *e = buffer_list_push_data(ol, str, len+1);
         if (e)
         {
-            e->buf.len = len; /* Don't count trailing '\0' as part of length */
+            e->buf.len = (int)len; /* Don't count trailing '\0' as part of length */
         }
     }
 }
@@ -1296,7 +1292,7 @@ void
 buffer_list_aggregate_separator(struct buffer_list *bl, const size_t max_len,
                                 const char *sep)
 {
-    const int sep_len = strlen(sep);
+    const size_t sep_len = strlen(sep);
     struct buffer_entry *more = bl->head;
     size_t size = 0;
     int count = 0;
@@ -1403,7 +1399,7 @@ buffer_read_from_file(const char *filename, struct gc_arena *gc)
 {
     struct buffer ret = { 0 };
 
-    platform_stat_t file_stat = {0};
+    platform_stat_t file_stat = { 0 };
     if (platform_stat(filename, &file_stat) < 0)
     {
         return ret;
@@ -1417,13 +1413,13 @@ buffer_read_from_file(const char *filename, struct gc_arena *gc)
 
     const size_t size = file_stat.st_size;
     ret = alloc_buf_gc(size + 1, gc); /* space for trailing \0 */
-    ssize_t read_size = fread(BPTR(&ret), 1, size, fp);
-    if (read_size < 0)
+    size_t read_size = fread(BPTR(&ret), 1, size, fp);
+    if (read_size == 0)
     {
         free_buf_gc(&ret, gc);
         goto cleanup;
     }
-    ASSERT(buf_inc_len(&ret, read_size));
+    ASSERT(buf_inc_len(&ret, (int)read_size));
     buf_null_terminate(&ret);
 
 cleanup:

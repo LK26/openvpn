@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -45,7 +45,7 @@
  *      ifconfig $1 10.1.0.2 pointopoint 10.1.0.1 mtu 1450
  *
  *    Compression overflow bytes is the worst-case size expansion that would be
- *    expected if we tried to compress mtu + extra_frame bytes of uncompressible data.
+ *    expected if we tried to compress mtu + extra_frame bytes of incompressible data.
  */
 
 /*
@@ -209,7 +209,7 @@ void frame_print(const struct frame *frame,
                  int level,
                  const char *prefix);
 
-void set_mtu_discover_type(int sd, int mtu_type, sa_family_t proto_af);
+void set_mtu_discover_type(socket_descriptor_t sd, int mtu_type, sa_family_t proto_af);
 
 int translate_mtu_discover_type_name(const char *name);
 
@@ -298,12 +298,6 @@ static inline void
 frame_add_to_extra_buffer(struct frame *frame, const int increment)
 {
     frame->extra_buffer += increment;
-}
-
-static inline void
-frame_add_to_align_adjust(struct frame *frame, const int increment)
-{
-    frame->align_adjust += increment;
 }
 
 static inline void

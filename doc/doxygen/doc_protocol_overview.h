@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2010-2018 Fox Crypto B.V. <openvpn@fox-it.com>
+ *  Copyright (C) 2010-2021 Fox Crypto B.V. <openvpn@foxcrypto.com>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -150,7 +150,7 @@
  *
  * @subsection network_protocol_control_plaintext Structure of plaintext control channel messages
  *
- *  - %Key method 1:
+ *  - %Key method 1 (support removed in OpenVPN 2.5):
  *     - Cipher %key length in bytes (1 byte).
  *     - Cipher %key (n bytes).
  *     - HMAC %key length in bytes (1 byte).

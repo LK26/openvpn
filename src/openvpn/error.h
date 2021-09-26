@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -30,6 +30,10 @@
 #include <stdbool.h>
 
 #include <assert.h>
+
+#if _WIN32
+#include <windows.h>
+#endif
 
 /* #define ABORT_ON_ERROR */
 
@@ -146,33 +150,12 @@ bool dont_mute(unsigned int flags);
 /* Macro to ensure (and teach static analysis tools) we exit on fatal errors */
 #define EXIT_FATAL(flags) do { if ((flags) & M_FATAL) {_exit(1);}} while (false)
 
-#if defined(HAVE_CPP_VARARG_MACRO_ISO) && !defined(__LCLINT__)
-#define HAVE_VARARG_MACROS
 #define msg(flags, ...) do { if (msg_test(flags)) {x_msg((flags), __VA_ARGS__);} EXIT_FATAL(flags); } while (false)
 #ifdef ENABLE_DEBUG
 #define dmsg(flags, ...) do { if (msg_test(flags)) {x_msg((flags), __VA_ARGS__);} EXIT_FATAL(flags); } while (false)
 #else
 #define dmsg(flags, ...)
 #endif
-#elif defined(HAVE_CPP_VARARG_MACRO_GCC) && !defined(__LCLINT__)
-#define HAVE_VARARG_MACROS
-#define msg(flags, args ...) do { if (msg_test(flags)) {x_msg((flags), args);} EXIT_FATAL(flags); } while (false)
-#ifdef ENABLE_DEBUG
-#define dmsg(flags, args ...) do { if (msg_test(flags)) {x_msg((flags), args);} EXIT_FATAL(flags); } while (false)
-#else
-#define dmsg(flags, args ...)
-#endif
-#else  /* if defined(HAVE_CPP_VARARG_MACRO_ISO) && !defined(__LCLINT__) */
-#if !PEDANTIC
-#ifdef _MSC_VER
-#pragma message("this compiler appears to lack vararg macros which will cause a significant degradation in efficiency")
-#else
-#warning this compiler appears to lack vararg macros which will cause a significant degradation in efficiency (you can ignore this warning if you are using LCLINT)
-#endif
-#endif
-#define msg x_msg
-#define dmsg x_msg
-#endif /* if defined(HAVE_CPP_VARARG_MACRO_ISO) && !defined(__LCLINT__) */
 
 void x_msg(const unsigned int flags, const char *format, ...)
 #ifdef __GNUC__
@@ -223,8 +206,14 @@ FILE *msg_fp(const unsigned int flags);
 #define ASSERT(x) do { if (!(x)) {assert_failed(__FILE__, __LINE__, NULL);}} while (false)
 #endif
 
+#ifdef _MSC_VER
+__declspec(noreturn)
+#endif
 void assert_failed(const char *filename, int line, const char *condition)
-__attribute__((__noreturn__));
+#ifndef _MSC_VER
+__attribute__((__noreturn__))
+#endif
+;
 
 /* Poor-man's static_assert() for when not supplied by assert.h, taken from
  * Linux's sys/cdefs.h under GPLv2 */
@@ -267,8 +256,8 @@ void close_syslog(void);
 void redirect_stdout_stderr(const char *file, bool append);
 
 #ifdef _WIN32
-/* get original stderr handle, even if redirected by --log/--log-append */
-HANDLE get_orig_stderr(void);
+/* get original stderr fd, even if redirected by --log/--log-append */
+int get_orig_stderr(void);
 
 #endif
 

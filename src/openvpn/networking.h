@@ -1,7 +1,7 @@
 /*
  *  Generic interface to platform specific networking code
  *
- *  Copyright (C) 2016-2018 Antonio Quartulli <a@unstable.cc>
+ *  Copyright (C) 2016-2021 Antonio Quartulli <a@unstable.cc>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -31,15 +31,27 @@ struct context;
 #include "networking_iproute2.h"
 #else
 /* define mock types to ensure code builds on any platform */
-typedef void * openvpn_net_ctx_t;
-typedef void * openvpn_net_iface_t;
+typedef void *openvpn_net_ctx_t;
+typedef void *openvpn_net_iface_t;
 
 static inline int
 net_ctx_init(struct context *c, openvpn_net_ctx_t *ctx)
 {
     return 0;
 }
-#endif
+
+static inline void
+net_ctx_reset(openvpn_net_ctx_t *ctx)
+{
+    (void)ctx;
+}
+
+static inline void
+net_ctx_free(openvpn_net_ctx_t *ctx)
+{
+    (void)ctx;
+}
+#endif /* ifdef ENABLE_SITNL */
 
 #if defined(ENABLE_SITNL) || defined(ENABLE_IPROUTE)
 
@@ -52,6 +64,20 @@ net_ctx_init(struct context *c, openvpn_net_ctx_t *ctx)
  * @return          0 on success, a negative error code otherwise
  */
 int net_ctx_init(struct context *c, openvpn_net_ctx_t *ctx);
+
+/**
+ * Release resources allocated by the internal garbage collector
+ *
+ * @param ctx       the implementation specific context
+ */
+void net_ctx_reset(openvpn_net_ctx_t *ctx);
+
+/**
+ * Release all resources allocated within the platform specific context object
+ *
+ * @param ctx       the implementation specific context to release
+ */
+void net_ctx_free(openvpn_net_ctx_t *ctx);
 
 /**
  * Bring interface up or down.
@@ -84,13 +110,11 @@ int net_iface_mtu_set(openvpn_net_ctx_t *ctx,
  * @param iface     the interface where the address has to be added
  * @param addr      the address to add
  * @param prefixlen the prefix length of the network associated with the address
- * @param broadcast the broadcast address to configure on the interface
  *
  * @return          0 on success, a negative error code otherwise
  */
 int net_addr_v4_add(openvpn_net_ctx_t *ctx, const openvpn_net_iface_t *iface,
-                    const in_addr_t *addr, int prefixlen,
-                    const in_addr_t *broadcast);
+                    const in_addr_t *addr, int prefixlen);
 
 /**
  * Add an IPv6 address to an interface

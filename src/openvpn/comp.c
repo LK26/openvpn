@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -127,7 +127,7 @@ void
 comp_add_to_extra_buffer(struct frame *frame)
 {
     /* Leave room for compression buffer to expand in worst case scenario
-     * where data is totally uncompressible */
+     * where data is totally incompressible */
     frame_add_to_extra_buffer(frame, COMP_EXTRA_BUFFER(EXPANDED_SIZE(frame)));
 }
 

@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2018 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -435,11 +435,5 @@ fragment_wakeup(struct fragment_master *f, struct frame *frame)
 {
     /* delete fragments with expired TTLs */
     fragment_ttl_reap(f);
-}
-
-#else  /* ifdef ENABLE_FRAGMENT */
-static void
-dummy(void)
-{
 }
 #endif /* ifdef ENABLE_FRAGMENT */
