@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -265,21 +265,22 @@ send_control_channel_string(struct context *c, const char *str, int msglevel);
 
 /*
  * Send a string to remote over the TLS control channel.
- * Used for push/pull messages, passing username/password,
- * etc.
+ * Used for push/pull messages, auth pending and other clear text
+ * control messages.
  *
  * This variant does not schedule the actual sending of the message
  * The caller needs to ensure that it is scheduled or call
  * send_control_channel_string
  *
- * @param multi      - The tls_multi structure of the VPN tunnel associated
- *                     with the packet.
+ * @param session    - The session structure of the VPN tunnel associated
+ *                     with the packet. The method will always use the
+ *                     primary key (KS_PRIMARY) for sending the message
  * @param str        - The message to be sent
  * @param msglevel   - Message level to use for logging
  */
 
 bool
-send_control_channel_string_dowork(struct tls_multi *multi,
+send_control_channel_string_dowork(struct tls_session *session,
                                    const char *str, int msglevel);
 
 
@@ -296,8 +297,9 @@ void reschedule_multi_process(struct context *c);
 #define PIP_OUTGOING                    (1<<2)
 #define PIPV4_EXTRACT_DHCP_ROUTER       (1<<3)
 #define PIPV4_CLIENT_NAT                (1<<4)
-#define PIPV6_IMCP_NOHOST_CLIENT        (1<<5)
-#define PIPV6_IMCP_NOHOST_SERVER        (1<<6)
+#define PIPV6_ICMP_NOHOST_CLIENT        (1<<5)
+#define PIPV6_ICMP_NOHOST_SERVER        (1<<6)
+
 
 void process_ip_header(struct context *c, unsigned int flags, struct buffer *buf);
 

@@ -4,8 +4,6 @@
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
-#elif defined(_MSC_VER)
-#include "config-msvc.h"
 #endif
 
 #include "syshead.h"
@@ -13,6 +11,7 @@
 #include "misc.h"
 #include "run_command.h"
 #include "lladdr.h"
+#include "proto.h"
 
 int
 set_lladdr(openvpn_net_ctx_t *ctx, const char *ifname, const char *lladdr,
@@ -26,7 +25,7 @@ set_lladdr(openvpn_net_ctx_t *ctx, const char *ifname, const char *lladdr,
     }
 
 #if defined(TARGET_LINUX)
-    uint8_t addr[ETH_ALEN];
+    uint8_t addr[OPENVPN_ETH_ALEN];
 
     sscanf(lladdr, MAC_FMT, MAC_SCAN_ARG(addr));
     r = (net_addr_ll_set(ctx, ifname, addr) == 0);

@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -31,8 +31,6 @@
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
-#elif defined(_MSC_VER)
-#include "config-msvc.h"
 #endif
 
 #include "syshead.h"
@@ -48,15 +46,6 @@
 #include "memdbg.h"
 
 #define UP_TYPE_SOCKS           "SOCKS Proxy"
-
-void
-socks_adjust_frame_parameters(struct frame *frame, int proto)
-{
-    if (proto == PROTO_UDP)
-    {
-        frame_add_to_extra_link(frame, 10);
-    }
-}
 
 struct socks_proxy_info *
 socks_proxy_new(const char *server,
@@ -120,8 +109,12 @@ socks_username_password_auth(struct socks_proxy_info *p,
             "Authentication not possible.");
         goto cleanup;
     }
-    openvpn_snprintf(to_send, sizeof(to_send), "\x01%c%s%c%s", (int) strlen(creds.username),
-                     creds.username, (int) strlen(creds.password), creds.password);
+
+    int sret = snprintf(to_send, sizeof(to_send), "\x01%c%s%c%s",
+                        (int) strlen(creds.username), creds.username,
+                        (int) strlen(creds.password), creds.password);
+    ASSERT(sret <= sizeof(to_send));
+
     size = send(sd, to_send, strlen(to_send), MSG_NOSIGNAL);
 
     if (size != strlen(to_send))
@@ -317,7 +310,7 @@ recv_socks_reply(socket_descriptor_t sd,
     char atyp = '\0';
     int alen = 0;
     int len = 0;
-    char buf[270];		/* 4 + alen(max 256) + 2 */
+    char buf[270];              /* 4 + alen(max 256) + 2 */
     const int timeout_sec = 5;
 
     if (addr != NULL)
@@ -366,9 +359,14 @@ recv_socks_reply(socket_descriptor_t sd,
         size = recv(sd, &c, 1, MSG_NOSIGNAL);
 
         /* error? */
-        if (size != 1)
+        if (size < 0)
         {
             msg(D_LINK_ERRORS | M_ERRNO, "recv_socks_reply: TCP port read failed on recv()");
+            return false;
+        }
+        else if (size == 0)
+        {
+            msg(D_LINK_ERRORS, "ERROR: recv_socks_reply: empty response from socks server");
             return false;
         }
 
@@ -457,12 +455,12 @@ establish_socks_proxy_passthru(struct socks_proxy_info *p,
                                socket_descriptor_t sd,  /* already open to proxy */
                                const char *host,        /* openvpn server remote */
                                const char *servname,    /* openvpn server port */
-                               volatile int *signal_received)
+                               struct signal_info *sig_info)
 {
     char buf[270];
     size_t len;
 
-    if (!socks_handshake(p, sd, signal_received))
+    if (!socks_handshake(p, sd, &sig_info->signal_received))
     {
         goto error;
     }
@@ -500,7 +498,7 @@ establish_socks_proxy_passthru(struct socks_proxy_info *p,
 
 
     /* receive reply from Socks proxy and discard */
-    if (!recv_socks_reply(sd, NULL, signal_received))
+    if (!recv_socks_reply(sd, NULL, &sig_info->signal_received))
     {
         goto error;
     }
@@ -508,10 +506,8 @@ establish_socks_proxy_passthru(struct socks_proxy_info *p,
     return;
 
 error:
-    if (!*signal_received)
-    {
-        *signal_received = SIGUSR1; /* SOFT-SIGUSR1 -- socks error */
-    }
+    /* SOFT-SIGUSR1 -- socks error */
+    register_signal(sig_info, SIGUSR1, "socks-error");
     return;
 }
 
@@ -520,9 +516,9 @@ establish_socks_proxy_udpassoc(struct socks_proxy_info *p,
                                socket_descriptor_t ctrl_sd,  /* already open to proxy */
                                socket_descriptor_t udp_sd,
                                struct openvpn_sockaddr *relay_addr,
-                               volatile int *signal_received)
+                               struct signal_info *sig_info)
 {
-    if (!socks_handshake(p, ctrl_sd, signal_received))
+    if (!socks_handshake(p, ctrl_sd, &sig_info->signal_received))
     {
         goto error;
     }
@@ -543,7 +539,7 @@ establish_socks_proxy_udpassoc(struct socks_proxy_info *p,
 
     /* receive reply from Socks proxy */
     CLEAR(*relay_addr);
-    if (!recv_socks_reply(ctrl_sd, relay_addr, signal_received))
+    if (!recv_socks_reply(ctrl_sd, relay_addr, &sig_info->signal_received))
     {
         goto error;
     }
@@ -551,10 +547,8 @@ establish_socks_proxy_udpassoc(struct socks_proxy_info *p,
     return;
 
 error:
-    if (!*signal_received)
-    {
-        *signal_received = SIGUSR1; /* SOFT-SIGUSR1 -- socks error */
-    }
+    /* SOFT-SIGUSR1 -- socks error */
+    register_signal(sig_info, SIGUSR1, "socks-error");
     return;
 }
 
@@ -610,7 +604,7 @@ socks_process_outgoing_udp(struct buffer *buf,
     /*
      * Get a 10 byte subset buffer prepended to buf --
      * we expect these bytes will be here because
-     * we allocated frame space in socks_adjust_frame_parameters.
+     * we always allocate space for these bytes
      */
     struct buffer head = buf_sub(buf, 10, true);
 

@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2013-2021 Heiko Hund <heiko.hund@sophos.com>
+ *  Copyright (C) 2013-2024 Heiko Hund <heiko.hund@sophos.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -31,8 +31,6 @@
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
-#elif defined(_MSC_VER)
-#include "config-msvc.h"
 #endif
 
 #include <winsock2.h>
@@ -82,12 +80,6 @@ extern LPCTSTR service_instance;
 VOID WINAPI ServiceStartInteractiveOwn(DWORD argc, LPTSTR *argv);
 
 VOID WINAPI ServiceStartInteractive(DWORD argc, LPTSTR *argv);
-
-BOOL openvpn_vsntprintf(LPTSTR str, size_t size, LPCTSTR format, va_list arglist);
-
-BOOL openvpn_sntprintf(LPTSTR str, size_t size, LPCTSTR format, ...);
-
-BOOL openvpn_swprintf(wchar_t *const str, const size_t size, const wchar_t *const format, ...);
 
 DWORD GetOpenvpnSettings(settings_t *s);
 

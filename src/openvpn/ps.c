@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -23,8 +23,6 @@
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
-#elif defined(_MSC_VER)
-#include "config-msvc.h"
 #endif
 
 #include "syshead.h"
@@ -356,7 +354,7 @@ journal_add(const char *journal_dir, struct proxy_connection *pc, struct proxy_c
         fnlen =  strlen(journal_dir) + strlen(t) + 2;
         jfn = (char *) malloc(fnlen);
         check_malloc_return(jfn);
-        openvpn_snprintf(jfn, fnlen, "%s/%s", journal_dir, t);
+        snprintf(jfn, fnlen, "%s/%s", journal_dir, t);
         dmsg(D_PS_PROXY_DEBUG, "PORT SHARE PROXY: client origin %s -> %s", jfn, f);
         fd = platform_open(jfn, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP);
         if (fd != -1)
@@ -432,7 +430,7 @@ proxy_entry_new(struct proxy_connection **list,
         msg(M_WARN|M_ERRNO, "PORT SHARE PROXY: cannot create socket");
         return false;
     }
-    status = openvpn_connect(sd_server,(const struct sockaddr *)  &server_addr, 5, NULL);
+    status = openvpn_connect(sd_server, (const struct sockaddr *)  &server_addr, 5, NULL);
     if (status)
     {
         msg(M_WARN, "PORT SHARE PROXY: connect to port-share server failed");
@@ -912,9 +910,6 @@ port_share_open(const char *host,
 
         /* no blocking on control channel back to parent */
         set_nonblock(fd[1]);
-
-        /* initialize prng */
-        prng_init(NULL, 0);
 
         /* execute the event loop */
         port_share_proxy(hostaddr, fd[1], max_initial_buf, journal_dir);

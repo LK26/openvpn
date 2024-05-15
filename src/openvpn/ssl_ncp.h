@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *  Copyright (C) 2010-2021 Fox Crypto B.V. <openvpn@foxcrypto.com>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@
  */
 
 /**
- * @file Control Channel SSL/Data dynamic negotion Module
+ * @file Control Channel SSL/Data dynamic negotiation Module
  * This file is split from ssl.h to be able to unit test it.
  */
 
@@ -147,5 +147,13 @@ void p2p_mode_ncp(struct tls_multi *multi, struct tls_session *session);
 const char *
 get_p2p_ncp_cipher(struct tls_session *session, const char *peer_info,
                    struct gc_arena *gc);
+
+
+/**
+ * Checks if the cipher is allowed, otherwise returns false and reset the
+ * cipher to the config cipher.
+ */
+bool
+check_session_cipher(struct tls_session *session, struct options *options);
 
 #endif /* ifndef OPENVPN_SSL_NCP_H */

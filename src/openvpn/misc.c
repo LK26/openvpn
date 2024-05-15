@@ -5,9 +5,9 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *  Copyright (C) 2014-2015 David Sommerseth <davids@redhat.com>
- *  Copyright (C) 2016-2021 David Sommerseth <davids@openvpn.net>
+ *  Copyright (C) 2016-2024 David Sommerseth <davids@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -25,8 +25,6 @@
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
-#elif defined(_MSC_VER)
-#include "config-msvc.h"
 #endif
 
 #include "syshead.h"
@@ -126,6 +124,83 @@ auth_user_pass_mgmt(struct user_pass *up, const char *prefix, const unsigned int
     }
     return true;
 }
+
+/**
+ * Parses an authentication challenge string and returns an auth_challenge_info structure.
+ * The authentication challenge string should follow the dynamic challenge/response protocol.
+ *
+ * See doc/management-notes.txt for more info on the dynamic challenge/response protocol
+ * implemented here.
+ *
+ * @param auth_challenge The authentication challenge string to parse. Can't be NULL.
+ * @param gc             The gc_arena structure for memory allocation.
+ *
+ * @return               A pointer to the parsed auth_challenge_info structure, or NULL if parsing fails.
+ */
+static struct auth_challenge_info *
+parse_auth_challenge(const char *auth_challenge, struct gc_arena *gc)
+{
+    ASSERT(auth_challenge);
+
+    struct auth_challenge_info *ac;
+    const int len = strlen(auth_challenge);
+    char *work = (char *) gc_malloc(len+1, false, gc);
+    char *cp;
+
+    struct buffer b;
+    buf_set_read(&b, (const uint8_t *)auth_challenge, len);
+
+    ALLOC_OBJ_CLEAR_GC(ac, struct auth_challenge_info, gc);
+
+    /* parse prefix */
+    if (!buf_parse(&b, ':', work, len))
+    {
+        return NULL;
+    }
+    if (strcmp(work, "CRV1"))
+    {
+        return NULL;
+    }
+
+    /* parse flags */
+    if (!buf_parse(&b, ':', work, len))
+    {
+        return NULL;
+    }
+    for (cp = work; *cp != '\0'; ++cp)
+    {
+        const char c = *cp;
+        if (c == 'E')
+        {
+            ac->flags |= CR_ECHO;
+        }
+        else if (c == 'R')
+        {
+            ac->flags |= CR_RESPONSE;
+        }
+    }
+
+    /* parse state ID */
+    if (!buf_parse(&b, ':', work, len))
+    {
+        return NULL;
+    }
+    ac->state_id = string_alloc(work, gc);
+
+    /* parse user name */
+    if (!buf_parse(&b, ':', work, len))
+    {
+        return NULL;
+    }
+    ac->user = (char *) gc_malloc(strlen(work)+1, true, gc);
+    openvpn_base64_decode(work, (void *)ac->user, -1);
+
+    /* parse challenge text */
+    ac->challenge_text = string_alloc(BSTR(&b), gc);
+
+    return ac;
+}
+
 #endif /* ifdef ENABLE_MANAGEMENT */
 
 /*
@@ -197,6 +272,11 @@ get_user_pass_cr(struct user_pass *up,
                 buf_parse(&buf, '\n', up->username, USER_PASS_LEN);
             }
             buf_parse(&buf, '\n', up->password, USER_PASS_LEN);
+
+            if (strlen(up->password) == 0)
+            {
+                password_from_stdin = 1;
+            }
         }
         /*
          * Read from auth file unless this is a dynamic challenge request.
@@ -253,6 +333,7 @@ get_user_pass_cr(struct user_pass *up,
                 msg(D_LOW, "No password found in %s authfile '%s'. Querying the management interface", prefix, auth_file);
                 if (!auth_user_pass_mgmt(up, prefix, flags, auth_challenge))
                 {
+                    fclose(fp);
                     return false;
                 }
             }
@@ -283,7 +364,7 @@ get_user_pass_cr(struct user_pass *up,
 #ifdef ENABLE_MANAGEMENT
             if (auth_challenge && (flags & GET_USER_PASS_DYNAMIC_CHALLENGE) && response_from_stdin)
             {
-                struct auth_challenge_info *ac = get_auth_challenge(auth_challenge, &gc);
+                struct auth_challenge_info *ac = parse_auth_challenge(auth_challenge, &gc);
                 if (ac)
                 {
                     char *response = (char *) gc_malloc(USER_PASS_LEN, false, &gc);
@@ -388,83 +469,6 @@ get_user_pass_cr(struct user_pass *up,
     return true;
 }
 
-#ifdef ENABLE_MANAGEMENT
-
-/*
- * See management/management-notes.txt for more info on the
- * the dynamic challenge/response protocol implemented here.
- */
-struct auth_challenge_info *
-get_auth_challenge(const char *auth_challenge, struct gc_arena *gc)
-{
-    if (auth_challenge)
-    {
-        struct auth_challenge_info *ac;
-        const int len = strlen(auth_challenge);
-        char *work = (char *) gc_malloc(len+1, false, gc);
-        char *cp;
-
-        struct buffer b;
-        buf_set_read(&b, (const uint8_t *)auth_challenge, len);
-
-        ALLOC_OBJ_CLEAR_GC(ac, struct auth_challenge_info, gc);
-
-        /* parse prefix */
-        if (!buf_parse(&b, ':', work, len))
-        {
-            return NULL;
-        }
-        if (strcmp(work, "CRV1"))
-        {
-            return NULL;
-        }
-
-        /* parse flags */
-        if (!buf_parse(&b, ':', work, len))
-        {
-            return NULL;
-        }
-        for (cp = work; *cp != '\0'; ++cp)
-        {
-            const char c = *cp;
-            if (c == 'E')
-            {
-                ac->flags |= CR_ECHO;
-            }
-            else if (c == 'R')
-            {
-                ac->flags |= CR_RESPONSE;
-            }
-        }
-
-        /* parse state ID */
-        if (!buf_parse(&b, ':', work, len))
-        {
-            return NULL;
-        }
-        ac->state_id = string_alloc(work, gc);
-
-        /* parse user name */
-        if (!buf_parse(&b, ':', work, len))
-        {
-            return NULL;
-        }
-        ac->user = (char *) gc_malloc(strlen(work)+1, true, gc);
-        openvpn_base64_decode(work, (void *)ac->user, -1);
-
-        /* parse challenge text */
-        ac->challenge_text = string_alloc(BSTR(&b), gc);
-
-        return ac;
-    }
-    else
-    {
-        return NULL;
-    }
-}
-
-#endif /* ifdef ENABLE_MANAGEMENT */
-
 void
 purge_user_pass(struct user_pass *up, const bool force)
 {
@@ -487,31 +491,21 @@ purge_user_pass(struct user_pass *up, const bool force)
 }
 
 void
-set_auth_token(struct user_pass *up, struct user_pass *tk, const char *token)
+set_auth_token(struct user_pass *tk, const char *token)
 {
-
     if (strlen(token))
     {
         strncpynt(tk->password, token, USER_PASS_LEN);
         tk->token_defined = true;
 
         /*
-         * --auth-token has no username, so it needs the username
-         * either already set or copied from up, or later set by
-         * --auth-token-user
-         *
-         * Do not overwrite the username if already set to avoid
-         * overwriting an username set by --auth-token-user
+         * If username already set, tk is fully defined.
          */
-        if (up->defined && !tk->defined)
+        if (strlen(tk->username))
         {
-            strncpynt(tk->username, up->username, USER_PASS_LEN);
             tk->defined = true;
         }
     }
-
-    /* Cleans user/pass for nocache */
-    purge_user_pass(up, false);
 }
 
 void
@@ -773,26 +767,6 @@ output_peer_info_env(struct env_set *es, const char *peer_info)
             msg(M_WARN, "validation failed on peer_info line received from client");
         }
     }
-}
-
-int
-get_num_elements(const char *string, char delimiter)
-{
-    int string_len = strlen(string);
-
-    ASSERT(0 != string_len);
-
-    int element_count = 1;
-    /* Get number of ciphers */
-    for (int i = 0; i < string_len; i++)
-    {
-        if (string[i] == delimiter)
-        {
-            element_count++;
-        }
-    }
-
-    return element_count;
 }
 
 struct buffer

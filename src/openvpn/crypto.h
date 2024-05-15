@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *  Copyright (C) 2010-2021 Fox Crypto B.V. <openvpn@foxcrypto.com>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -40,7 +40,7 @@
  *    HMAC at all.
  *  - \b Ciphertext \b IV. The IV size depends on the \c \-\-cipher option.
  *  - \b Packet \b ID, a 32-bit incrementing packet counter that provides replay
- *    protection (if not disabled by \c \-\-no-replay).
+ *    protection.
  *  - \b Timestamp, a 32-bit timestamp of the current time.
  *  - \b Payload, the plain text network packet to be encrypted (unless
  *    encryption is disabled by using \c \-\-cipher \c none). The payload might
@@ -138,10 +138,8 @@ struct sha256_digest {
  */
 struct key_type
 {
-    uint8_t cipher_length;      /**< Cipher length, in bytes */
-    uint8_t hmac_length;        /**< HMAC length, in bytes */
-    const cipher_kt_t *cipher;  /**< Cipher static parameters */
-    const md_kt_t *digest;      /**< Message digest static parameters */
+    const char *cipher;         /**< const name of the cipher */
+    const char *digest;         /**< Message digest static parameters */
 };
 
 /**
@@ -236,7 +234,14 @@ struct crypto_options
      *   both sending and receiving
      *   directions. */
     struct packet_id packet_id; /**< Current packet ID state for both
-                                 *   sending and receiving directions. */
+                                 *   sending and receiving directions.
+                                 *
+                                 *   This contains the packet id that is
+                                 *   used for replay protection.
+                                 *
+                                 *   The packet id also used as the IV
+                                 *   for AEAD/OFB/CFG ciphers.
+                                 *   */
     struct packet_id_persist *pid_persist;
     /**< Persistent packet ID state for
      *   keeping state between successive
@@ -258,6 +263,23 @@ struct crypto_options
     /**< Bit-flag indicating that data channel key derivation
      * is done using TLS keying material export [RFC5705]
      */
+#define CO_RESEND_WKC (1<<4)
+    /**< Bit-flag indicating that the client is expected to
+     * resend the wrapped client key with the 2nd packet (packet-id 1)
+     * like with the HARD_RESET_CLIENT_V3 packet */
+#define CO_FORCE_TLSCRYPTV2_COOKIE  (1<<5)
+    /**< Bit-flag indicating that we do not allow clients that do
+     * not support resending the wrapped client key (WKc) with the
+     * third packet of the three-way handshake */
+#define CO_USE_CC_EXIT_NOTIFY       (1<<6)
+    /**< Bit-flag indicating that explicit exit notifies should be
+     * sent via the control channel instead of using an OCC message
+     */
+#define CO_USE_DYNAMIC_TLS_CRYPT   (1<<7)
+    /**< Bit-flag indicating that renegotiations are using tls-crypt
+     *   with a TLS-EKM derived key.
+     */
+
     unsigned int flags;         /**< Bit-flags determining behavior of
                                  *   security operation functions. */
 };
@@ -282,13 +304,7 @@ void read_key_file(struct key2 *key2, const char *file, const unsigned int flags
  */
 int write_key_file(const int nkeys, const char *filename);
 
-void generate_key_random(struct key *key, const struct key_type *kt);
-
-void check_replay_consistency(const struct key_type *kt, bool packet_id);
-
 bool check_key(struct key *key, const struct key_type *kt);
-
-void fixup_key(struct key *key, const struct key_type *kt);
 
 bool write_key(const struct key *key, const struct key_type *kt,
                struct buffer *buf);
@@ -413,11 +429,23 @@ bool crypto_check_replay(struct crypto_options *opt,
                          struct gc_arena *gc);
 
 
-/** Calculate crypto overhead and adjust frame to account for that */
-void crypto_adjust_frame_parameters(struct frame *frame,
-                                    const struct key_type *kt,
-                                    bool packet_id,
-                                    bool packet_id_long_form);
+/** Calculate the maximum overhead that our encryption has
+ * on a packet. This does not include needed additional buffer size
+ *
+ * This does NOT include the padding and rounding of CBC size
+ * as the users (mssfix/fragment) of this function need to adjust for
+ * this and add it themselves.
+ *
+ * @param kt            Struct with the crypto algorithm to use
+ * @param packet_id_size Size of the packet id
+ * @param occ           if true calculates the overhead for crypto in the same
+ *                      incorrect way as all previous OpenVPN versions did, to
+ *                      end up with identical numbers for OCC compatibility
+ */
+unsigned int
+calculate_crypto_overhead(const struct key_type *kt,
+                          unsigned int pkt_id_size,
+                          bool occ);
 
 /** Return the worst-case OpenVPN crypto overhead (in bytes) */
 unsigned int crypto_max_overhead(void);
@@ -456,24 +484,6 @@ bool
 read_pem_key_file(struct buffer *key, const char *pem_name,
                   const char *key_file, bool key_inline);
 
-/* Minimum length of the nonce used by the PRNG */
-#define NONCE_SECRET_LEN_MIN 16
-
-/* Maximum length of the nonce used by the PRNG */
-#define NONCE_SECRET_LEN_MAX 64
-
-/** Number of bytes of random to allow before resetting the nonce */
-#define PRNG_NONCE_RESET_BYTES 1024
-
-/**
- * Pseudo-random number generator initialisation.
- * (see \c prng_rand_bytes())
- *
- * @param md_name                       Name of the message digest to use
- * @param nonce_secret_len_param        Length of the nonce to use
- */
-void prng_init(const char *md_name, const int nonce_secret_len_parm);
-
 /*
  * Message digest-based pseudo random number generator.
  *
@@ -491,13 +501,11 @@ void prng_init(const char *md_name, const int nonce_secret_len_parm);
  */
 void prng_bytes(uint8_t *output, int len);
 
-void prng_uninit(void);
-
 /* an analogue to the random() function, but use prng_bytes */
 long int get_random(void);
 
 /** Print a cipher list entry */
-void print_cipher(const cipher_kt_t *cipher);
+void print_cipher(const char *cipher);
 
 void test_crypto(struct crypto_options *co, struct frame *f);
 
@@ -523,7 +531,8 @@ void key2_print(const struct key2 *k,
 void crypto_read_openvpn_key(const struct key_type *key_type,
                              struct key_ctx_bi *ctx, const char *key_file,
                              bool key_inline, const int key_direction,
-                             const char *key_name, const char *opt_name);
+                             const char *key_name, const char *opt_name,
+                             struct key2 *keydata);
 
 /*
  * Inline functions
@@ -552,5 +561,44 @@ key_ctx_bi_defined(const struct key_ctx_bi *key)
  * @param is_inline true when str contains an inline data of some sort
  */
 const char *print_key_filename(const char *str, bool is_inline);
+
+/**
+ * Creates and validates an instance of struct key_type with the provided
+ * algs.
+ *
+ * @param cipher    the cipher algorithm to use (must be a string literal)
+ * @param md        the digest algorithm to use (must be a string literal)
+ * @param optname   the name of the option requiring the key_type object
+ *
+ * @return          the initialized key_type instance
+ */
+static inline struct key_type
+create_kt(const char *cipher, const char *md, const char *optname)
+{
+    struct key_type kt;
+    kt.cipher = cipher;
+    kt.digest = md;
+
+    if (cipher_defined(kt.cipher) && !cipher_valid(kt.cipher))
+    {
+        msg(M_WARN, "ERROR: --%s requires %s support.", optname, kt.cipher);
+        return (struct key_type) { 0 };
+    }
+    if (md_defined(kt.digest) && !md_valid(kt.digest))
+    {
+        msg(M_WARN, "ERROR: --%s requires %s support.", optname, kt.digest);
+        return (struct key_type) { 0 };
+    }
+
+    return kt;
+}
+
+/**
+ * Checks if the current TLS library supports the TLS 1.0 PRF with MD5+SHA1
+ * that OpenVPN uses when TLS Keying Material Export is not available.
+ *
+ * @return  true if supported, false otherwise.
+ */
+bool check_tls_prf_working(void);
 
 #endif /* CRYPTO_H */

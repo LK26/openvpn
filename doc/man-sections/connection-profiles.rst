@@ -16,8 +16,7 @@ achieves a successful connection.
 ``--remote-random`` can be used to initially "scramble" the connection
 list.
 
-Here is an example of connection profile usage:
-::
+Here is an example of connection profile usage::
 
    client
    dev tun
@@ -40,7 +39,6 @@ Here is an example of connection profile usage:
    http-proxy 192.168.0.8 8080
    </connection>
 
-   persist-key
    persist-tun
    pkcs12 client.p12
    remote-cert-tls server

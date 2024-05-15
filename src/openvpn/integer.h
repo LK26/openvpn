@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -35,6 +35,13 @@
 #define ntohll(x) ((1==ntohl(1)) ? (x) : \
                    ((uint64_t)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))
 #endif
+
+static inline int
+clamp_size_to_int(size_t size)
+{
+    ASSERT(size <= INT_MAX);
+    return (int)size;
+}
 
 /*
  * min/max functions
@@ -183,6 +190,15 @@ index_verify(int index, int size, const char *file, int line)
             line);
     }
     return index;
+}
+
+/**
+ * Rounds down num to the nearest multiple of multiple
+ */
+static inline size_t
+round_down_size(size_t num, size_t multiple)
+{
+    return (num / multiple) * multiple;
 }
 
 #endif /* ifndef INTEGER_H */

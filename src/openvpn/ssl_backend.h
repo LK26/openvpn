@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2021 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *  Copyright (C) 2010-2021 Fox Crypto B.V. <openvpn@foxcrypto.com>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -52,15 +52,6 @@
  *  prototype for struct tls_session from ssl_common.h
  */
 struct tls_session;
-
-/**
- * Get a tls_cipher_name_pair containing OpenSSL and IANA names for supplied TLS cipher name
- *
- * @param cipher_name   Can be either OpenSSL or IANA cipher name
- * @return              tls_cipher_name_pair* if found, NULL otherwise
- */
-typedef struct { const char *openssl_name; const char *iana_name; } tls_cipher_name_pair;
-const tls_cipher_name_pair *tls_get_cipher_name_pair(const char *cipher_name, size_t len);
 
 /*
  *
@@ -391,6 +382,7 @@ void backend_tls_ctx_reload_crl(struct tls_root_ctx *ssl_ctx,
 
 #define EXPORT_KEY_DATA_LABEL       "EXPORTER-OpenVPN-datakeys"
 #define EXPORT_P2P_PEERID_LABEL     "EXPORTER-OpenVPN-p2p-peerid"
+#define EXPORT_DYNAMIC_TLS_CRYPT_LABEL  "EXPORTER-OpenVPN-dynamic-tls-crypt"
 /**
  * Keying Material Exporters [RFC 5705] allows additional keying material to be
  * derived from existing TLS channel. This exported keying material can then be
@@ -405,7 +397,7 @@ void backend_tls_ctx_reload_crl(struct tls_root_ctx *ssl_ctx,
  */
 bool
 key_state_export_keying_material(struct tls_session *session,
-                                 const char* label, size_t label_size,
+                                 const char *label, size_t label_size,
                                  void *ekm, size_t ekm_size);
 
 /**************************************************************************/
@@ -461,7 +453,6 @@ int key_state_write_plaintext_const(struct key_state_ssl *ks_ssl,
  * @param ks_ssl       - The security parameter state for this %key
  *                       session.
  * @param buf          - A buffer in which to store the ciphertext.
- * @param maxlen       - The maximum number of bytes to extract.
  *
  * @return The return value indicates whether the data was successfully
  *     processed:
@@ -470,8 +461,8 @@ int key_state_write_plaintext_const(struct key_state_ssl *ks_ssl,
  *   later to retry.
  * - \c -1: An error occurred.
  */
-int key_state_read_ciphertext(struct key_state_ssl *ks_ssl, struct buffer *buf,
-                              int maxlen);
+int key_state_read_ciphertext(struct key_state_ssl *ks_ssl, struct buffer *buf);
+
 
 /** @} name Functions for packets to be sent to a remote OpenVPN peer */
 
@@ -517,8 +508,7 @@ int key_state_write_ciphertext(struct key_state_ssl *ks_ssl,
  *   later to retry.
  * - \c -1: An error occurred.
  */
-int key_state_read_plaintext(struct key_state_ssl *ks_ssl, struct buffer *buf,
-                             int maxlen);
+int key_state_read_plaintext(struct key_state_ssl *ks_ssl, struct buffer *buf);
 
 /** @} name Functions for packets received from a remote OpenVPN peer */
 
